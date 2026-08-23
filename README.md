@@ -20,7 +20,7 @@ The pipeline (Stages 1-7) is fully implemented and tested against synthetic data
 **Live-API status:**
 
 - 3DEP DEM fetcher: endpoint verified live; should work end-to-end
-- LFPS fetcher: job endpoint surface verified as `/api/job/submit` and `/api/job/status`; live runs still require a real `LANDFIRE_EMAIL` (set in `.env` — `web/server.py` and `main.py` share the same loader)
+- LFPS fetcher: job endpoint surface verified as `/api/job/submit` and `/api/job/status`; live runs still require a real `LANDFIRE_EMAIL` (set in `.env` - `web/server.py` and `main.py` share the same loader)
 
 ## Quick start
 
@@ -157,7 +157,7 @@ Or use your own farm boundary GeoJSON:
 
 Prerequisites:
 
-- ELMFIRE must be built at `elmfire/build/linux/bin/elmfire_2025.0212`. The setup in this workspace uses WSL Ubuntu and the official `elmfire/build/linux/make_gnu.sh` build. The `elmfire/` directory is intentionally a peer-install location, not a git submodule — see [`elmfire/README.md`](elmfire/README.md) for the build procedure. The runners (`wildfire_preproc.elmfire.SubprocessElmfireRunner` / `WslElmfireRunner` / `resolve_elmfire_runner`) all validate the executable exists at construction and raise `ElmfireExecutableMissingError` with a clear message rather than failing partway through a subprocess.
+- ELMFIRE must be built at `elmfire/build/linux/bin/elmfire_2025.0212`. The setup in this workspace uses WSL Ubuntu and the official `elmfire/build/linux/make_gnu.sh` build. The `elmfire/` directory is intentionally a peer-install location, not a git submodule - see [`elmfire/README.md`](elmfire/README.md) for the build procedure. The runners (`wildfire_preproc.elmfire.SubprocessElmfireRunner` / `WslElmfireRunner` / `resolve_elmfire_runner`) all validate the executable exists at construction and raise `ElmfireExecutableMissingError` with a clear message rather than failing partway through a subprocess.
 - `--runner auto|wsl|native` is consistent across `python main.py` and `wildfire-preproc elmfire`. `auto` picks WSL on Windows and the native subprocess on macOS/Linux.
 - Live preprocessing still depends on the LFPS fetch endpoint. See "Live integration notes" below if LFPS layer fetching fails before the ELMFIRE stage.
 
@@ -220,13 +220,13 @@ By default the input polygon is interpreted as `EPSG:4326` (lon/lat). Override w
 
 7 stages, run in order:
 
-1. **Domain** — buffer the protected polygon to produce simulation domain, ignition ring, candidate zone, and 8 ignition points (all in the projected target CRS, polygon-boundary based).
-2. **Acquire** — fetch each layer from its configured source (LFPS for fuels/canopy, 3DEP for DEM). Cached on disk by sha256(bbox+layer+crs). Atomic writes (.tmp + rename), smart retry (Connection/Timeout/5xx/429 only).
-3. **Align** — build a single canonical `GridSpec` snapped to the global cell grid, then reproject every raster onto it (nearest for FBFM40, bilinear for continuous). `reproject_match` is the only path that produces an aligned raster.
-4. **Terrain** — derive slope and aspect from the aligned DEM via Horn 3x3 (slope in degrees, aspect compass-cw-from-N with flat=-1).
-5. **Masks** — rasterize `protected_mask`, `candidate_zone`, build `non_burnable_mask` via pluggable source registry (FBFM40 reclass default).
-6. **Validate** — verify CRS, transform, dimensions, nodata, value ranges per layer; build a human-readable report. Fails the run on the first violation.
-7. **Export** — write `metadata.json`; clean up `_intermediate/` (preserved with `--keep-intermediate`).
+1. **Domain** - buffer the protected polygon to produce simulation domain, ignition ring, candidate zone, and 8 ignition points (all in the projected target CRS, polygon-boundary based).
+2. **Acquire** - fetch each layer from its configured source (LFPS for fuels/canopy, 3DEP for DEM). Cached on disk by sha256(bbox+layer+crs). Atomic writes (.tmp + rename), smart retry (Connection/Timeout/5xx/429 only).
+3. **Align** - build a single canonical `GridSpec` snapped to the global cell grid, then reproject every raster onto it (nearest for FBFM40, bilinear for continuous). `reproject_match` is the only path that produces an aligned raster.
+4. **Terrain** - derive slope and aspect from the aligned DEM via Horn 3x3 (slope in degrees, aspect compass-cw-from-N with flat=-1).
+5. **Masks** - rasterize `protected_mask`, `candidate_zone`, build `non_burnable_mask` via pluggable source registry (FBFM40 reclass default).
+6. **Validate** - verify CRS, transform, dimensions, nodata, value ranges per layer; build a human-readable report. Fails the run on the first violation.
+7. **Export** - write `metadata.json`; clean up `_intermediate/` (preserved with `--keep-intermediate`).
 
 ### Module layout
 

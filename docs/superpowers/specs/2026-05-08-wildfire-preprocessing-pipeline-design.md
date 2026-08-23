@@ -1,4 +1,4 @@
-# Wildfire Preprocessing Pipeline — Design
+# Wildfire Preprocessing Pipeline - Design
 
 **Date:** 2026-05-08
 **Status:** Approved (pending final user review)
@@ -24,10 +24,10 @@ Given a protected-land polygon and a small JSON config, produce a directory of a
 
 Optional fields with defaults:
 
-- `safety_buffer_m` — `100`
-- `non_burnable_sources` — `["fbfm40"]`
-- `landfire_version` — `"LF2022"`
-- `cache_dir` — `~/.cache/wildfire-preproc`
+- `safety_buffer_m` - `100`
+- `non_burnable_sources` - `["fbfm40"]`
+- `landfire_version` - `"LF2022"`
+- `cache_dir` - `~/.cache/wildfire-preproc`
 
 ### Output directory
 
@@ -108,7 +108,7 @@ agrishield/
 
 ### Key invariants enforced by the architecture
 
-1. After Stage 3, a single `GridSpec` (CRS, transform, width, height, nodata strategy) is frozen on the `Job`. Every subsequent raster is reprojected/snapped to it. There is no path through the pipeline that produces a raster *not* matched to that GridSpec — that is what prevents ELMFIRE alignment failures.
+1. After Stage 3, a single `GridSpec` (CRS, transform, width, height, nodata strategy) is frozen on the `Job`. Every subsequent raster is reprojected/snapped to it. There is no path through the pipeline that produces a raster *not* matched to that GridSpec - that is what prevents ELMFIRE alignment failures.
 2. `sources/base.py` defines `RasterSource` with `fetch(layer: LayerKey, bbox, dst_crs) -> Path`. `local`, `lfps`, `threedep` all implement it. The rest of the pipeline never branches on which one is in use.
 3. `non_burnable_mask` is built by `union_of(sources)` where each source is a binary-mask producer. FBFM40 reclass is the default; OSM/shapefile producers can be added later without touching the rest of the pipeline.
 
@@ -160,7 +160,7 @@ JSON payload
 - **Domain bounds → grid:** Stage 3 takes `simulation_domain.bounds`, snaps outward to a multiple of `cell_size_m` *anchored at the target CRS origin (0, 0)*. Two jobs in the same CRS that overlap therefore produce pixel-identical extents in the overlap region.
 - **Nodata policy:** continuous → `-9999` (float32); categorical (fbfm40) → `255` (uint8); masks → no nodata, `uint8` 0/1 only. Enforced in `export/writer.py`; stages do not write GeoTIFFs by hand.
 - **Ignition output:** GeoJSON only; no ignition raster generated.
-- **Intermediate `_intermediate/`:** holds raw fetched tiles and the three Stage 1 vector files that aren't part of the deliverable (`simulation_domain.geojson`, `ignition_ring.geojson`, `candidate_zone_polygon.geojson`). Deleted by default; preserved with `--keep-intermediate`. `inputs/ignition_points.geojson` is the only Stage 1 vector kept by default — it's the deliverable.
+- **Intermediate `_intermediate/`:** holds raw fetched tiles and the three Stage 1 vector files that aren't part of the deliverable (`simulation_domain.geojson`, `ignition_ring.geojson`, `candidate_zone_polygon.geojson`). Deleted by default; preserved with `--keep-intermediate`. `inputs/ignition_points.geojson` is the only Stage 1 vector kept by default - it's the deliverable.
 
 ## 5. The Hard Parts
 
@@ -196,7 +196,7 @@ Resampling rules (driven by a `LayerKind` enum):
 | `slp`, `asp` | derived | computed after DEM is on grid |
 | `protected_mask`, `candidate_zone`, `non_burnable_mask` | mask | rasterized directly to grid |
 
-Slope and aspect are computed *after* the DEM is on the canonical grid, never before — reprojection-induced smoothing distorts the derivatives.
+Slope and aspect are computed *after* the DEM is on the canonical grid, never before - reprojection-induced smoothing distorts the derivatives.
 
 ### 5.2 Slope and aspect (Horn 1981, 3×3)
 
@@ -210,16 +210,16 @@ For each cell, with 3x3 z window:
 
 Outputs:
 
-- `slp.tif` — float32, **degrees** (0–90), nodata `-9999`.
-- `asp.tif` — float32, **degrees clockwise from north** (0–360), flat cells `-1`, nodata `-9999`.
+- `slp.tif` - float32, **degrees** (0–90), nodata `-9999`.
+- `asp.tif` - float32, **degrees clockwise from north** (0–360), flat cells `-1`, nodata `-9999`.
 
-Implemented with `scipy.ndimage.convolve` over the two Sobel-weighted kernels — vectorized, no Python-level loops.
+Implemented with `scipy.ndimage.convolve` over the two Sobel-weighted kernels - vectorized, no Python-level loops.
 
 Edges: outermost ring of pixels set to nodata. At 30 m on a 5 km radius this loses ~330 cells out of ~110 000.
 
 ### 5.3 LFPS and 3DEP fetchers
 
-**LFPS (LANDFIRE Product Service)** — open ArcGIS REST endpoint at `https://lfps.usgs.gov/api/job/`.
+**LFPS (LANDFIRE Product Service)** - open ArcGIS REST endpoint at `https://lfps.usgs.gov/api/job/`.
 
 1. POST job request with layers + bbox + output CRS → returns `jobId`.
 2. Poll `/job/<jobId>` until `Status == "Succeeded"` (fail on `"Failed"` or timeout).
@@ -231,7 +231,7 @@ Retry policy via `tenacity`: exponential backoff `1s → 60s` cap, max 6 attempt
 
 Cache: `~/.cache/wildfire-preproc/lfps/<sha256(bbox+layer+crs)>.tif`. Same parameters → no-op after first run.
 
-**3DEP DEM** — USGS dynamic clip endpoint at `https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage`. Same retry and cache policy as LFPS. 3DEP returns ~10 m by default; resampled to 30 m via `bilinear` in Stage 3.
+**3DEP DEM** - USGS dynamic clip endpoint at `https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage`. Same retry and cache policy as LFPS. 3DEP returns ~10 m by default; resampled to 30 m via `bilinear` in Stage 3.
 
 ### 5.4 Stage 1 geometry (polygon-boundary based)
 
@@ -324,7 +324,7 @@ uv add --dev pytest pytest-cov responses ruff mypy
 
 ## 9. Sample AOI
 
-`data/sample/santa_monica_demo.geojson` — small (~few-km²) protected polygon in Santa Monica Mountains National Recreation Area. Chosen because it has full LANDFIRE/3DEP coverage, compact bounds (fast end-to-end), and mixed terrain that exercises every layer non-trivially including non-burnable codes.
+`data/sample/santa_monica_demo.geojson` - small (~few-km²) protected polygon in Santa Monica Mountains National Recreation Area. Chosen because it has full LANDFIRE/3DEP coverage, compact bounds (fast end-to-end), and mixed terrain that exercises every layer non-trivially including non-burnable codes.
 
 `scripts/run_sample.sh` wraps `wildfire-preproc sample` for the README quick-start.
 
@@ -372,9 +372,9 @@ uv add --dev pytest pytest-cov responses ruff mypy
 ## 11. Definition of Done
 
 1. `uv sync` produces a working environment from a clean clone.
-2. `wildfire-preproc sample` runs end-to-end on a developer machine — actually fetching from LFPS and 3DEP — and produces the full output directory.
+2. `wildfire-preproc sample` runs end-to-end on a developer machine - actually fetching from LFPS and 3DEP - and produces the full output directory.
 3. `wildfire-preproc validate jobs/<sample>/` passes all checks.
-4. `pytest` passes — unit tests for align, terrain, masks, validation, geometry; one integration test that runs the sample end-to-end and asserts on the manifest plus grid invariants. Marked `@pytest.mark.live` and run by default (per design Q4 = live data, real run).
+4. `pytest` passes - unit tests for align, terrain, masks, validation, geometry; one integration test that runs the sample end-to-end and asserts on the manifest plus grid invariants. Marked `@pytest.mark.live` and run by default (per design Q4 = live data, real run).
 5. `mypy src/` passes.
 6. README has a quick-start and an "outputs explained" section.
 
@@ -382,7 +382,7 @@ uv add --dev pytest pytest-cov responses ruff mypy
 
 - **LFPS may rate-limit or be down** during live runs. Retry policy mitigates transient failures; persistent outage will surface as a clean error rather than a faked green run.
 - **LFPS layer name codes may have shifted** (e.g. LF2023 release). Codes will be verified against live LFPS docs during implementation; source registry will be updated as needed.
-- **3DEP returns ~10 m DEM by default**; resampled to 30 m via bilinear in Stage 3 — correct, but worth flagging.
+- **3DEP returns ~10 m DEM by default**; resampled to 30 m via bilinear in Stage 3 - correct, but worth flagging.
 
 ## 13. Out of scope (v1)
 

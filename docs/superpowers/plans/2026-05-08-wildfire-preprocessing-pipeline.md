@@ -205,7 +205,7 @@ git commit -m "chore: bootstrap uv project with GIS dependencies"
 
 ---
 
-## Task 2: Config — LayerKey, LayerKind, JobConfig
+## Task 2: Config - LayerKey, LayerKind, JobConfig
 
 **Files:**
 - Create: `src/wildfire_preproc/config.py`
@@ -670,7 +670,7 @@ git commit -m "feat(align): GridSpec snapped to global cell grid"
 
 ---
 
-## Task 5: reproject_match — the only path to an aligned raster
+## Task 5: reproject_match - the only path to an aligned raster
 
 **Files:**
 - Create: `src/wildfire_preproc/utils/raster.py`, `src/wildfire_preproc/align/align.py`
@@ -928,7 +928,7 @@ git commit -m "feat(align): reproject_match enforces canonical grid + kind-speci
 
 ---
 
-## Task 6: Stage 1 — simulation domain geometry
+## Task 6: Stage 1 - simulation domain geometry
 
 **Files:**
 - Create: `src/wildfire_preproc/domain/__init__.py`, `src/wildfire_preproc/domain/simulation_domain.py`
@@ -1142,7 +1142,7 @@ git commit -m "feat(domain): Stage 1 simulation domain, ignition ring, 8 ignitio
 
 ---
 
-## Task 7: Stage 4 — slope/aspect from DEM (Horn 3×3)
+## Task 7: Stage 4 - slope/aspect from DEM (Horn 3×3)
 
 **Files:**
 - Create: `src/wildfire_preproc/terrain/__init__.py`, `src/wildfire_preproc/terrain/derive.py`
@@ -1375,7 +1375,7 @@ git commit -m "feat(terrain): slope/aspect via Horn 3x3 kernel"
 
 ---
 
-## Task 8: Stage 5 — protected mask & candidate zone
+## Task 8: Stage 5 - protected mask & candidate zone
 
 **Files:**
 - Create: `src/wildfire_preproc/masks/__init__.py`, `src/wildfire_preproc/masks/protected.py`, `src/wildfire_preproc/masks/candidate.py`
@@ -1541,7 +1541,7 @@ git commit -m "feat(masks): protected_mask + candidate_zone rasterization"
 
 ---
 
-## Task 9: Stage 5 — non-burnable mask + FBFM40 codes
+## Task 9: Stage 5 - non-burnable mask + FBFM40 codes
 
 **Files:**
 - Create: `src/wildfire_preproc/validation/__init__.py`, `src/wildfire_preproc/validation/fbfm40_codes.py`, `src/wildfire_preproc/masks/non_burnable.py`
@@ -1732,7 +1732,7 @@ git commit -m "feat(masks): non_burnable_mask via pluggable source registry (FBF
 
 ---
 
-## Task 10: Stage 6 — validation checks
+## Task 10: Stage 6 - validation checks
 
 **Files:**
 - Create: `src/wildfire_preproc/validation/checks.py`
@@ -2059,7 +2059,7 @@ git commit -m "feat(validation): human-readable report formatter"
 
 ---
 
-## Task 12: Stage 2 — sources base + cache + local
+## Task 12: Stage 2 - sources base + cache + local
 
 **Files:**
 - Create: `src/wildfire_preproc/sources/__init__.py`, `src/wildfire_preproc/sources/base.py`, `src/wildfire_preproc/sources/cache.py`, `src/wildfire_preproc/sources/local.py`
@@ -2195,7 +2195,7 @@ git commit -m "feat(sources): RasterSource protocol, cache key, LocalRasterSourc
 
 ---
 
-## Task 13: Stage 2 — LFPS fetcher
+## Task 13: Stage 2 - LFPS fetcher
 
 **Files:**
 - Create: `src/wildfire_preproc/sources/lfps.py`
@@ -2445,7 +2445,7 @@ git commit -m "feat(sources): LFPS fetcher with retry+cache"
 
 ---
 
-## Task 14: Stage 2 — 3DEP DEM fetcher
+## Task 14: Stage 2 - 3DEP DEM fetcher
 
 **Files:**
 - Create: `src/wildfire_preproc/sources/threedep.py`
@@ -2598,7 +2598,7 @@ git commit -m "feat(sources): 3DEP DEM fetcher with retry+cache"
 **Files:**
 - Create: `src/wildfire_preproc/sources/registry.py`
 
-- [ ] **Step 1: Implement registry (no dedicated test file — exercised end-to-end in pipeline test)**
+- [ ] **Step 1: Implement registry (no dedicated test file - exercised end-to-end in pipeline test)**
 
 Create `src/wildfire_preproc/sources/registry.py`:
 
@@ -2643,7 +2643,7 @@ git commit -m "feat(sources): DefaultSourceRegistry maps layers to backends"
 
 ---
 
-## Task 16: Stage 7 — metadata.json builder
+## Task 16: Stage 7 - metadata.json builder
 
 **Files:**
 - Create: `src/wildfire_preproc/export/__init__.py`, `src/wildfire_preproc/export/metadata.py`
@@ -2816,7 +2816,7 @@ git commit -m "feat(export): build_metadata creates the metadata.json structure"
 - Create: `src/wildfire_preproc/pipeline.py`
 - Test: `tests/test_pipeline.py`
 
-This task is integration-flavored — it wires every stage. The test uses the `LocalRasterSource` (from Task 12) so we don't depend on the live network.
+This task is integration-flavored - it wires every stage. The test uses the `LocalRasterSource` (from Task 12) so we don't depend on the live network.
 
 - [ ] **Step 1: Write failing test**
 
@@ -3453,9 +3453,9 @@ Run: `chmod +x scripts/run_sample.sh`
 - [ ] **Step 3: Run the live integration test**
 
 Run: `uv run pytest tests/test_pipeline_e2e_live.py -x -v -m live`
-Expected: PASS — actually fetches from LFPS + 3DEP, runs full pipeline, validates outputs.
+Expected: PASS - actually fetches from LFPS + 3DEP, runs full pipeline, validates outputs.
 
-If LFPS or 3DEP is down or rate-limits, the test will fail with a clear network error. In that case: do not fake the test pass — report the failure, fix any code bug it reveals, and re-run.
+If LFPS or 3DEP is down or rate-limits, the test will fail with a clear network error. In that case: do not fake the test pass - report the failure, fix any code bug it reveals, and re-run.
 
 - [ ] **Step 4: Commit**
 
@@ -3601,13 +3601,13 @@ Mapping each spec section to tasks that implement it:
 | §3 Invariant 1 (frozen GridSpec) | Tasks 4, 5 |
 | §3 Invariant 2 (RasterSource protocol) | Tasks 12, 13, 14, 15 |
 | §3 Invariant 3 (non_burnable plug-in) | Task 9 |
-| §4 Stage 1 — domain | Task 6 |
-| §4 Stage 2 — acquire | Tasks 12–15, 17 |
-| §4 Stage 3 — align | Tasks 4, 5 |
-| §4 Stage 4 — terrain | Task 7 |
-| §4 Stage 5 — masks | Tasks 8, 9 |
-| §4 Stage 6 — validate | Tasks 10, 11 |
-| §4 Stage 7 — export | Tasks 16, 17 |
+| §4 Stage 1 - domain | Task 6 |
+| §4 Stage 2 - acquire | Tasks 12–15, 17 |
+| §4 Stage 3 - align | Tasks 4, 5 |
+| §4 Stage 4 - terrain | Task 7 |
+| §4 Stage 5 - masks | Tasks 8, 9 |
+| §4 Stage 6 - validate | Tasks 10, 11 |
+| §4 Stage 7 - export | Tasks 16, 17 |
 | §5.1 GridSpec construction | Task 4 |
 | §5.2 Horn 3×3 slope/aspect | Task 7 |
 | §5.3 LFPS + 3DEP fetchers | Tasks 13, 14 |
@@ -3619,6 +3619,6 @@ Mapping each spec section to tasks that implement it:
 | §10 metadata.json structure | Task 16 |
 | §11 Definition of Done | Tasks 17, 18, 20, 21 |
 | §12 Risks (LFPS down, layer codes) | Task 13 (retry policy + acknowledged in code constants) |
-| §13 Out of scope | (no task — explicitly excluded) |
+| §13 Out of scope | (no task - explicitly excluded) |
 
 No spec gaps.
