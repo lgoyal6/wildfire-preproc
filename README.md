@@ -22,6 +22,62 @@ The pipeline (Stages 1-7) is fully implemented and tested against synthetic data
 - 3DEP DEM fetcher: endpoint verified live; should work end-to-end
 - LFPS fetcher: job endpoint surface verified as `/api/job/submit` and `/api/job/status`; live runs still require a real `LANDFIRE_EMAIL` (set in `.env` - `web/server.py` and `main.py` share the same loader)
 
+## How a job flows
+
+One `job.json` produces one canonical grid, and everything downstream is defined
+against it. The grid is built from the buffered simulation polygon *before* any
+layer is fetched, so the fetch bbox, every raster, both masks, and the ELMFIRE
+decks are all the same pixels.
+
+```mermaid
+flowchart TB
+    Job["job.json<br/>protected polygon, radii,<br/>cell size, target CRS"]
+
+    subgraph Pre["wildfire-preproc run"]
+        direction TB
+        S1["1 domain<br/>simulation polygon, ignition ring,<br/>candidate annulus, 8 ignition points"]
+        Grid["3 GridSpec<br/>snapped to the global cell grid<br/>built before any fetch"]
+        S2["2 acquire<br/>LFPS: fbfm40, cc, ch, cbh, cbd<br/>3DEP: dem<br/>disk cache keyed by layer, bbox<br/>and CRS; LFPS adds landfire_version"]
+        S3["3 reproject_match<br/>nearest for fbfm40,<br/>bilinear for continuous"]
+        S4["4 terrain<br/>Horn 3x3 slp and asp<br/>from the aligned dem"]
+        S5["5 masks<br/>protected, candidate_zone,<br/>non_burnable from FBFM40 reclass"]
+        S6{"6 validate<br/>CRS, transform, size,<br/>nodata, value range"}
+        S7["7 metadata.json,<br/>drop _intermediate/"]
+
+        S1 --> Grid --> S2 --> S3 --> S4 --> S5 --> S6
+        S6 -- "all pass" --> S7
+        S6 -- "any fail" --> Stop["validation_report.txt written,<br/>then RuntimeError"]
+    end
+
+    Job --> S1
+    Grid -. "bbox for every fetch,<br/>target for every reproject,<br/>shape for every mask" .-> S2 & S3 & S4 & S5 & S6
+    S7 --> Inputs["inputs/<br/>11 rasters sharing one CRS,<br/>transform, width and height"]
+
+    Inputs --> Ens["wildfire-preproc elmfire<br/>8 ignition bearings,<br/>wind aimed at the polygon centre"]
+    Ens --> Base["elmfire_no_firebreak/bearing_*<br/>time of arrival, fireline intensity,<br/>spread rate, run_manifest.json"]
+
+    subgraph Opt["optimize-firebreaks"]
+        direction TB
+        Risk["risk surface<br/>each scenario deposits weight along<br/>its own bearing, scaled by whether<br/>the patch burned and how much;<br/>zeroed outside the candidate zone"]
+        Cand["arc candidates<br/>bearings ranked by risk,<br/>3 radial offsets each,<br/>clipped to the candidate zone"]
+        Score["score = fixed baseline damage<br/>+ cost + length<br/>- risk covered"]
+        Rank["ranked layouts, each written as<br/>firebreak_mask.tif, segments.geojson,<br/>and an fbfm40 with the break<br/>burned in as non-burnable code 99"]
+        Risk --> Cand --> Score --> Rank
+    end
+
+    Base --> Risk
+    Inputs --> Risk
+    Rank --> Json["firebreak_optimization.json"]
+    Rank -- "--rerun-elmfire" --> Rerun["rank-1 modified fbfm40 staged into<br/>a fresh inputs/ and pushed back<br/>through the 8-bearing ensemble"]
+    Rerun --> Json
+```
+
+The baseline terms in the score are identical for every candidate, so what
+actually orders the layouts is cost plus length against risk covered. The
+`optimized_result` block in the JSON is the only place where a layout's effect
+is measured rather than estimated, and it only exists when `--rerun-elmfire`
+was passed.
+
 ## Quick start
 
 ```bash
