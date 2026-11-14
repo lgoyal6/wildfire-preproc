@@ -294,6 +294,29 @@ function pointAtBearing(origin, bearingDeg, distanceM) {
   };
 }
 
+function toLocalMeters(origin, point) {
+  const mPerDegLat = 111_320;
+  const mPerDegLon = Math.cos((origin.lat * Math.PI) / 180) * mPerDegLat;
+  return {
+    x: (point.lon - origin.lon) * mPerDegLon,
+    y: (point.lat - origin.lat) * mPerDegLat,
+  };
+}
+
+function fromLocalMeters(origin, point) {
+  const mPerDegLat = 111_320;
+  const mPerDegLon = Math.cos((origin.lat * Math.PI) / 180) * mPerDegLat;
+  return {
+    lon: origin.lon + point.x / mPerDegLon,
+    lat: origin.lat + point.y / mPerDegLat,
+  };
+}
+
+function unitForBearing(bearingDeg) {
+  const theta = ((90 - bearingDeg) * Math.PI) / 180;
+  return { x: Math.cos(theta), y: Math.sin(theta) };
+}
+
 function defaultLocationPolygon(lon, lat, widthM = 250, heightM = 250) {
   const mPerDegLat = 111_320;
   const mPerDegLon = Math.cos((lat * Math.PI) / 180) * mPerDegLat;
@@ -318,6 +341,55 @@ function ignitionPoints() {
     bearing,
     ...pointAtBearing(origin, bearing, state.ignitionDistanceM),
   }));
+}
+
+function scenarioRiskScore(bearing, origin = polygonCentroid(state.polygon)) {
+  const windDriven = directionalAlignment(bearing, state.windDirectionDeg);
+  const fuelEdge = directionalAlignment(bearing, 315) * 0.75 + directionalAlignment(bearing, 270) * 0.45;
+  const assetExposure = state.assets.length
+    ? Math.min(
+        1,
+        state.assets.reduce((sum, asset) => {
+          const assetBearing = bearingFromTo(origin, asset.point);
+          return sum + directionalAlignment(bearing, assetBearing) * assetValue(asset.type);
+        }, 0) / 2.8,
+      )
+    : 0.32;
+  const weatherPressure = wildfireRiskScore() / 100;
+  return Math.max(0, Math.min(1, windDriven * 0.4 + fuelEdge * 0.25 + assetExposure * 0.2 + weatherPressure * 0.15));
+}
+
+function rankedThreatBearings(origin = polygonCentroid(state.polygon)) {
+  return ignitionPoints()
+    .map((point) => ({
+      ...point,
+      score: scenarioRiskScore(point.bearing, origin),
+      edge: exposedBoundaryPoint(origin, point.bearing),
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function exposedBoundaryPoint(origin, bearing) {
+  if (state.polygon.length < 3) return origin;
+  const direction = unitForBearing(bearing);
+  const polygon = state.polygon.map((point) => toLocalMeters(origin, point));
+  let bestDistance = Infinity;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const edge = { x: b.x - a.x, y: b.y - a.y };
+    const cross = direction.x * edge.y - direction.y * edge.x;
+    if (Math.abs(cross) < 0.00001) continue;
+    const t = (a.x * edge.y - a.y * edge.x) / cross;
+    const u = (a.x * direction.y - a.y * direction.x) / cross;
+    if (t >= 0 && u >= 0 && u <= 1 && t < bestDistance) bestDistance = t;
+  }
+  if (bestDistance < Infinity) {
+    return fromLocalMeters(origin, { x: direction.x * bestDistance, y: direction.y * bestDistance });
+  }
+  return state.polygon
+    .map((point) => ({ point, alignment: directionalAlignment(bearingFromTo(origin, point), bearing) }))
+    .sort((a, b) => b.alignment - a.alignment)[0].point;
 }
 
 function payload() {
@@ -495,19 +567,22 @@ function drawPolygon() {
 
 function drawIgnitions() {
   if (state.polygon.length < 3) return;
-  ignitionPoints().forEach((point) => {
+  const origin = polygonCentroid(state.polygon);
+  rankedThreatBearings(origin).forEach((point, idx) => {
     const p = project(point);
+    const radius = 5 + point.score * 7;
+    const alpha = idx < 4 ? 1 : 0.42;
     mapCtx.shadowColor = "rgba(255, 88, 45, 0.9)";
-    mapCtx.shadowBlur = 18;
-    mapCtx.fillStyle = "#ff3f2e";
-    mapCtx.strokeStyle = "#ffe66d";
+    mapCtx.shadowBlur = idx < 4 ? 18 : 6;
+    mapCtx.fillStyle = `rgba(255, 63, 46, ${alpha})`;
+    mapCtx.strokeStyle = idx < 4 ? "#ffe66d" : "rgba(255,230,109,0.5)";
     mapCtx.lineWidth = 2;
     mapCtx.beginPath();
-    mapCtx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    mapCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     mapCtx.fill();
     mapCtx.stroke();
     mapCtx.shadowBlur = 0;
-    mapCtx.fillStyle = "#fff6d2";
+    mapCtx.fillStyle = idx < 4 ? "#fff6d2" : "rgba(255,246,210,0.62)";
     mapCtx.font = "800 11px Inter, sans-serif";
     mapCtx.fillText(`${point.bearing}`, p.x + 10, p.y + 4);
   });
@@ -519,31 +594,46 @@ function drawFireSpread() {
   }
   const origin = polygonCentroid(state.polygon);
   const protectedMode = state.spreadMode === "protected";
-  ignitionPoints().forEach((point, idx) => {
+  const protectedBearings = new Set((state.optimization?.selected_actions || []).map((item) => item.bearing));
+  rankedThreatBearings(origin).forEach((point, idx) => {
+    const isPrimary = idx < 4;
     const start = project(point);
-    const end = project(origin);
+    const end = project(point.edge);
     const baseProgress = state.simProgress || 0.72;
-    const progress = protectedMode && idx < 6 ? Math.min(baseProgress, 0.56) : baseProgress;
-    const x = start.x + (end.x - start.x) * progress;
-    const y = start.y + (end.y - start.y) * progress;
-    const width = protectedMode ? 10 + progress * 13 : 14 + progress * 28 + idx * 0.8;
+    const blocked = protectedMode && [...protectedBearings].some((bearing) => bearingDiff(bearing, point.bearing) <= 45);
+    const progress = blocked ? Math.min(baseProgress, 0.48) : baseProgress;
+    const normal = unitForBearing(point.bearing + 90);
+    const bend = (idx % 2 === 0 ? 1 : -1) * (20 + point.score * 36);
+    const control = {
+      x: start.x + (end.x - start.x) * 0.58 + normal.x * bend,
+      y: start.y + (end.y - start.y) * 0.58 - normal.y * bend,
+    };
+    const x =
+      (1 - progress) * (1 - progress) * start.x +
+      2 * (1 - progress) * progress * control.x +
+      progress * progress * end.x;
+    const y =
+      (1 - progress) * (1 - progress) * start.y +
+      2 * (1 - progress) * progress * control.y +
+      progress * progress * end.y;
+    const width = (blocked ? 9 : 12) + progress * (isPrimary ? 26 : 13) * point.score;
     const g = mapCtx.createLinearGradient(start.x, start.y, x, y);
-    g.addColorStop(0, "rgba(255,154,61,0.05)");
-    g.addColorStop(0.62, protectedMode ? "rgba(255,190,69,0.18)" : "rgba(255,93,38,0.28)");
-    g.addColorStop(1, protectedMode ? "rgba(255,230,109,0.34)" : "rgba(255,28,28,0.7)");
+    g.addColorStop(0, `rgba(255,154,61,${isPrimary ? 0.08 : 0.03})`);
+    g.addColorStop(0.62, blocked ? "rgba(255,190,69,0.16)" : `rgba(255,93,38,${0.13 + point.score * 0.18})`);
+    g.addColorStop(1, blocked ? "rgba(255,230,109,0.28)" : `rgba(255,28,28,${isPrimary ? 0.68 : 0.25})`);
     mapCtx.strokeStyle = g;
     mapCtx.lineWidth = width;
     mapCtx.lineCap = "round";
     mapCtx.beginPath();
     mapCtx.moveTo(start.x, start.y);
-    mapCtx.lineTo(x, y);
+    mapCtx.quadraticCurveTo(control.x, control.y, x, y);
     mapCtx.stroke();
 
-    mapCtx.fillStyle = "rgba(255,230,109,0.85)";
+    mapCtx.fillStyle = blocked ? "rgba(255,230,109,0.72)" : "rgba(255,230,109,0.9)";
     mapCtx.shadowColor = "#ff3f2e";
-    mapCtx.shadowBlur = 20;
+    mapCtx.shadowBlur = isPrimary ? 20 : 8;
     mapCtx.beginPath();
-    mapCtx.arc(x, y, 5 + progress * 7, 0, Math.PI * 2);
+    mapCtx.arc(x, y, 4 + progress * 8 * point.score, 0, Math.PI * 2);
     mapCtx.fill();
     mapCtx.shadowBlur = 0;
   });
@@ -591,10 +681,13 @@ function emptyPlan() {
 }
 
 function generateActionCandidates(origin) {
-  const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
+  const bearings = rankedThreatBearings(origin).map((threat) => threat.bearing);
   const profile = protectionProfile();
   return bearings.map((bearing) => {
-    const distance = 660 + wildfireRiskScore() * 4;
+    const edge = exposedBoundaryPoint(origin, bearing);
+    const edgeMeters = toLocalMeters(origin, edge);
+    const edgeDistance = Math.hypot(edgeMeters.x, edgeMeters.y);
+    const distance = edgeDistance + 150 + wildfireRiskScore() * 1.8;
     const length = (720 + wildfireRiskScore() * 6) * profile.multiplier;
     return makeCandidate(origin, bearing, distance, length, "firebreak");
   });
@@ -620,6 +713,7 @@ function makeCandidate(origin, bearing, distanceM, lengthM, kind) {
 function scoreCandidate(candidate, origin, profile) {
   const windAlignment = directionalAlignment(candidate.bearing, state.windDirectionDeg);
   const wildlandEdge = directionalAlignment(candidate.bearing, 315) * 0.7 + directionalAlignment(candidate.bearing, 270) * 0.3;
+  const scenarioPressure = scenarioRiskScore(candidate.bearing, origin);
   const assetProtection = assetProtectionScore(candidate, origin);
   const cropDisruption = cropDisruptionScore(candidate);
   const harvestUrgency = state.harvestWindow === "now" ? 0.16 : state.harvestWindow === "week" ? 0.1 : 0.02;
@@ -630,6 +724,7 @@ function scoreCandidate(candidate, origin, profile) {
       wildlandEdge * 20 +
       assetProtection * 22 +
       riskPressure * 18 +
+      scenarioPressure * 18 +
       harvestUrgency * 18,
   );
   const disruption = Math.round((cropDisruption * 55 + candidate.length_m / 1100) / profile.multiplier);
@@ -808,11 +903,21 @@ function drawFirebreaks() {
   segments.forEach((segment) => {
     const coords = segment.geometry || [];
     if (coords.length < 2) return;
-    mapCtx.strokeStyle = "#f5f7fb";
-    mapCtx.lineWidth = 7;
+    mapCtx.strokeStyle = "rgba(245,247,251,0.86)";
+    mapCtx.lineWidth = 10;
     mapCtx.lineCap = "round";
     mapCtx.shadowColor = "rgba(86,182,255,0.7)";
-    mapCtx.shadowBlur = 15;
+    mapCtx.shadowBlur = 12;
+    mapCtx.beginPath();
+    coords.forEach(([lon, lat], idx) => {
+      const p = project({ lon, lat });
+      if (idx === 0) mapCtx.moveTo(p.x, p.y);
+      else mapCtx.lineTo(p.x, p.y);
+    });
+    mapCtx.stroke();
+    mapCtx.shadowBlur = 0;
+    mapCtx.strokeStyle = "#14191c";
+    mapCtx.lineWidth = 4;
     mapCtx.beginPath();
     coords.forEach(([lon, lat], idx) => {
       const p = project({ lon, lat });
@@ -907,9 +1012,18 @@ function drawRiskOverlays(rect) {
 }
 
 function drawAssets() {
+  const origin = state.polygon.length >= 3 ? polygonCentroid(state.polygon) : center;
+  const occupied = state.polygon.map(project).map((point) => ({
+    x: point.x - 16,
+    y: point.y - 16,
+    w: 32,
+    h: 32,
+  }));
+  const labels = [];
   state.assets.forEach((asset, idx) => {
     const p = project(asset.point);
     const meta = assetMeta(asset.type);
+    occupied.push({ x: p.x - 14, y: p.y - 14, w: 28, h: 28 });
     mapCtx.fillStyle = meta.color;
     mapCtx.strokeStyle = "#f5f7fb";
     mapCtx.lineWidth = 2;
@@ -925,10 +1039,66 @@ function drawAssets() {
     mapCtx.textAlign = "center";
     mapCtx.fillText(meta.icon, p.x, p.y + 4);
     mapCtx.textAlign = "start";
-    mapCtx.fillStyle = "#f5f7fb";
-    mapCtx.font = "800 11px Inter, sans-serif";
-    mapCtx.fillText(`${meta.label} ${idx + 1}`, p.x + 15, p.y + 4);
+    labels.push({ point: p, text: `${meta.label} ${idx + 1}`, bearing: bearingFromTo(origin, asset.point) });
   });
+  labels.forEach((label) => {
+    drawAssetLabel(label, occupied);
+  });
+}
+
+function drawAssetLabel(label, occupied) {
+  mapCtx.font = "800 11px Inter, sans-serif";
+  const width = Math.ceil(mapCtx.measureText(label.text).width) + 14;
+  const height = 20;
+  const offsets = labelOffsets(label.bearing);
+  const rect = offsets
+    .map((offset) => ({
+      x: label.point.x + offset.x,
+      y: label.point.y + offset.y - height / 2,
+      w: width,
+      h: height,
+    }))
+    .find((candidate) => !occupied.some((item) => rectsOverlap(candidate, item))) || {
+    x: label.point.x + 16,
+    y: label.point.y - height / 2,
+    w: width,
+    h: height,
+  };
+  occupied.push(rect);
+  const anchorX = rect.x < label.point.x ? rect.x + rect.w : rect.x;
+  const anchorY = rect.y + rect.h / 2;
+  mapCtx.strokeStyle = "rgba(245,247,251,0.72)";
+  mapCtx.lineWidth = 1.5;
+  mapCtx.beginPath();
+  mapCtx.moveTo(label.point.x, label.point.y);
+  mapCtx.lineTo(anchorX, anchorY);
+  mapCtx.stroke();
+  mapCtx.fillStyle = "rgba(7, 16, 11, 0.78)";
+  mapCtx.strokeStyle = "rgba(245,247,251,0.62)";
+  mapCtx.lineWidth = 1;
+  mapCtx.beginPath();
+  mapCtx.roundRect(rect.x, rect.y, rect.w, rect.h, 6);
+  mapCtx.fill();
+  mapCtx.stroke();
+  mapCtx.fillStyle = "#f5f7fb";
+  mapCtx.fillText(label.text, rect.x + 7, rect.y + 14);
+}
+
+function labelOffsets(bearing) {
+  const angle = ((90 - bearing) * Math.PI) / 180;
+  const primary = { x: Math.cos(angle) * 28, y: -Math.sin(angle) * 22 };
+  return [
+    primary,
+    { x: 18, y: -24 },
+    { x: 18, y: 26 },
+    { x: -92, y: -24 },
+    { x: -92, y: 26 },
+    { x: 30, y: 0 },
+  ];
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w + 4 && a.x + a.w + 4 > b.x && a.y < b.y + b.h + 4 && a.y + a.h + 4 > b.y;
 }
 
 function assetMeta(type) {
@@ -1028,17 +1198,20 @@ function fireHeatAt(x, z) {
   if (state.polygon.length < 3 || state.runState === "Draft") return 0;
   const protectedMode = state.spreadMode === "protected";
   const progress = state.simProgress || 0;
-  const angleStep = (Math.PI * 2) / 8;
+  const origin = polygonCentroid(state.polygon);
+  const threats = rankedThreatBearings(origin).slice(0, 5);
+  const protectedBearings = new Set((state.optimization?.selected_actions || []).map((item) => item.bearing));
   let heat = 0;
-  for (let i = 0; i < 8; i += 1) {
-    const angle = i * angleStep;
+  for (const threat of threats) {
+    const angle = ((90 - threat.bearing) * Math.PI) / 180;
     const sx = Math.cos(angle) * 280;
-    const sz = Math.sin(angle) * 220;
-    const limitedProgress = protectedMode && i < 6 ? Math.min(progress, 0.58) : progress;
+    const sz = -Math.sin(angle) * 220;
+    const blocked = protectedMode && [...protectedBearings].some((bearing) => bearingDiff(bearing, threat.bearing) <= 45);
+    const limitedProgress = blocked ? Math.min(progress, 0.52) : progress;
     const cx = sx * (1 - limitedProgress);
     const cz = sz * (1 - limitedProgress);
     const d = Math.hypot(x - cx, z - cz);
-    const intensity = protectedMode ? 0.46 : 1;
+    const intensity = blocked ? 0.42 : 0.45 + threat.score * 0.65;
     heat = Math.max(heat, Math.max(0, 1 - d / (38 + limitedProgress * 64)) * intensity);
   }
   return heat;
@@ -1073,18 +1246,18 @@ function drawTerrainFire(time) {
   const progress = state.simProgress || 0.05;
   const protectedMode = state.spreadMode === "protected";
   const protectedBearings = new Set((state.optimization?.selected_actions || []).map((item) => item.bearing));
-  for (let i = 0; i < 8; i += 1) {
-    const angle = (Math.PI * 2 * i) / 8;
-    const bearing = i * 45;
-    const slowed = protectedMode && [...protectedBearings].some((item) => bearingDiff(item, bearing) <= 45);
+  const threats = rankedThreatBearings(polygonCentroid(state.polygon)).slice(0, 5);
+  threats.forEach((threat, idx) => {
+    const angle = ((90 - threat.bearing) * Math.PI) / 180;
+    const slowed = protectedMode && [...protectedBearings].some((item) => bearingDiff(item, threat.bearing) <= 45);
     const localProgress = slowed ? Math.min(progress, 0.58) : progress;
-    const intensity = slowed ? 0.46 : 1;
+    const intensity = slowed ? 0.42 : 0.55 + threat.score * 0.55;
     const sx = Math.cos(angle) * 280;
-    const sz = Math.sin(angle) * 220;
+    const sz = -Math.sin(angle) * 220;
     const cx = sx * (1 - localProgress);
     const cz = sz * (1 - localProgress);
     const p = terrainPoint(cx, cz, rect, time);
-    const plume = (28 + localProgress * 42 + Math.sin(time * 0.006 + i) * 8) * intensity;
+    const plume = (24 + localProgress * 40 + Math.sin(time * 0.006 + idx) * 7) * intensity;
     const g = terrainCtx.createRadialGradient(p.x, p.y, 4, p.x, p.y, plume);
     g.addColorStop(0, `rgba(255,238,112,${0.95 * intensity})`);
     g.addColorStop(0.32, `rgba(255,112,42,${0.78 * intensity})`);
@@ -1094,13 +1267,13 @@ function drawTerrainFire(time) {
     terrainCtx.arc(p.x, p.y, plume, 0, Math.PI * 2);
     terrainCtx.fill();
 
-    terrainCtx.strokeStyle = `rgba(255,90,42,${0.5 * intensity})`;
+    terrainCtx.strokeStyle = `rgba(255,90,42,${0.42 * intensity})`;
     terrainCtx.lineWidth = 3;
     terrainCtx.beginPath();
     terrainCtx.moveTo(p.x, p.y);
-    terrainCtx.lineTo(rect.width / 2, rect.height * 0.58);
+    terrainCtx.lineTo(rect.width / 2 + Math.cos(angle) * 42, rect.height * 0.58 - Math.sin(angle) * 26);
     terrainCtx.stroke();
-  }
+  });
 }
 
 function drawTerrainBreaks(rect, time) {
@@ -1791,7 +1964,7 @@ function updateGuidance() {
       3 - state.polygon.length === 1 ? "" : "s"
     } needed before checking risk.`;
     els.mapHint.textContent = "Tap the map to add farm corner points";
-    els.simNarrative.textContent = "Press Check risk after drawing a farm boundary.";
+    els.simNarrative.textContent = "Press Simulate fire after drawing a farm boundary.";
     return;
   }
 
@@ -1808,10 +1981,10 @@ function updateGuidance() {
   }
 
   if (state.runState === "Draft") {
-    els.quickTask.textContent = "Ready to run ELMFIRE";
-    els.quickDetail.textContent = "Update the advisory to run preprocessing and 8 ignition scenarios.";
-    els.mapHint.textContent = "Update Farm Advisory starts the backend simulation";
-    els.simNarrative.textContent = "The backend run will replace the preview with ELMFIRE-based results.";
+    els.quickTask.textContent = "Ready to simulate fire";
+    els.quickDetail.textContent = "Press Simulate fire to preview 8 ignition paths and the recommended action line.";
+    els.mapHint.textContent = "Simulate fire runs the visual preview";
+    els.simNarrative.textContent = "The preview animates likely risk paths before and after actions.";
     return;
   }
 
@@ -1852,6 +2025,10 @@ function runPreviewSimulation() {
   };
   setView("baseline");
   updatePanels();
+}
+
+function runDemoSimulation() {
+  runPreviewSimulation();
 }
 
 async function runElmfireSimulation() {
@@ -1951,11 +2128,13 @@ function applyBackendRunStatus(run) {
     els.mapHint.textContent = `Backend simulation complete: ${run.job_dir}`;
     setView("firebreak");
   } else if (run.status === "failed") {
-    state.runState = "ELMFIRE failed";
+    state.runState = "Previewed";
     state.simRunning = false;
     state.simProgress = 0;
-    els.mapHint.textContent = run.error || "Backend simulation failed";
+    els.mapHint.textContent = "Full ELMFIRE failed locally; showing demo preview";
     console.error(run.log_tail || run);
+    runPreviewSimulation();
+    return;
   }
   updatePanels();
   drawAll();
@@ -2237,7 +2416,8 @@ function bindEvents() {
   });
   document.querySelector("#planMode").addEventListener("click", () => setAppMode("plan"));
   document.querySelector("#alertMode").addEventListener("click", () => setAppMode("alert"));
-  document.querySelector("#runSimulation").addEventListener("click", runElmfireSimulation);
+  document.querySelector("#runSimulation").addEventListener("click", runDemoSimulation);
+  document.querySelector("#runElmfire").addEventListener("click", runElmfireSimulation);
   document.querySelector("#loadLiveConditions").addEventListener("click", () => {
     loadLiveConditionsByQuery().catch(showFeedError);
   });
@@ -2246,7 +2426,7 @@ function bindEvents() {
   document.querySelector("#showProtectedSpread").addEventListener("click", () => setSpreadMode("protected"));
   document.querySelector("#mobileSample").addEventListener("click", addSamplePolygon);
   document.querySelector("#mobileUndo").addEventListener("click", undoPoint);
-  document.querySelector("#mobileRun").addEventListener("click", runElmfireSimulation);
+  document.querySelector("#mobileRun").addEventListener("click", runDemoSimulation);
   document.querySelector("#saveBackendJob").addEventListener("click", saveBackendJob);
   document.querySelector("#exportJob").addEventListener("click", () => exportJson("agrishield-job.json", payload()));
   document.querySelector("#copyPayload").addEventListener("click", async () => {
@@ -2323,7 +2503,7 @@ function setSpreadMode(mode) {
   state.spreadMode = mode;
   document.querySelector("#showBaselineSpread").classList.toggle("active", mode === "baseline");
   document.querySelector("#showProtectedSpread").classList.toggle("active", mode === "protected");
-  if (state.runState === "Draft" && state.polygon.length >= 3) runElmfireSimulation();
+  if (state.runState === "Draft" && state.polygon.length >= 3) runDemoSimulation();
   else drawAll();
 }
 
@@ -2331,3 +2511,24 @@ bindEvents();
 addSamplePolygon();
 resizeAll();
 requestAnimationFrame(tick);
+
+const params = new URLSearchParams(window.location.search);
+if (params.get("demo") === "record") {
+  const demoDelayMs = Number(params.get("delay") || 0);
+  window.setTimeout(() => {
+    runDemoSimulation();
+  }, demoDelayMs + 600);
+  window.setTimeout(() => {
+    setView("baseline");
+  }, demoDelayMs + 1200);
+  window.setTimeout(() => {
+    setSpreadMode("protected");
+    setView("firebreak");
+  }, demoDelayMs + 8500);
+  window.setTimeout(() => {
+    setView("report");
+  }, demoDelayMs + 14500);
+  window.setTimeout(() => {
+    setView("setup");
+  }, demoDelayMs + 20000);
+}
