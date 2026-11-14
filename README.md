@@ -36,6 +36,55 @@ uv run mypy src
 uv run ruff check src tests main.py web/server.py
 ```
 
+## Run The Repo
+
+From the repository root, install dependencies once:
+
+```bash
+uv sync --all-groups
+```
+
+Start the local AgriShield web app:
+
+```bash
+uv run python web/server.py
+```
+
+Open:
+
+```text
+http://127.0.0.1:4173/
+```
+
+To use a different port, pass it as the first argument:
+
+```bash
+uv run python web/server.py 4174
+```
+
+Useful backend commands:
+
+```bash
+# Show CLI commands
+uv run wildfire-preproc --help
+
+# Run the bundled sample AOI against live LFPS/3DEP services
+uv run wildfire-preproc sample --out jobs/sample-run
+
+# Run preprocessing for a saved job file
+uv run wildfire-preproc run jobs/ui/YOUR_JOB/job.json --out jobs/ui/YOUR_JOB/preprocessed
+
+# Run tests
+uv run pytest -m "not live"
+```
+
+Live LFPS/3DEP runs require a real LANDFIRE email in `.env`:
+
+```text
+LANDFIRE_EMAIL=your.email@example.com
+LANDFIRE_VERSION=LF2023
+```
+
 ## UI workspace
 
 The project includes a no-build browser UI in `web/` for project setup, polygon drawing,

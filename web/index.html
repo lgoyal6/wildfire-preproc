@@ -26,7 +26,7 @@
         <section class="panel priority-panel">
           <div class="panel-title">
             <h2>Find Your Farm</h2>
-            <p>Search, use your location, or start from the sample farm.</p>
+            <p>For the demo, start with the sample farm.</p>
           </div>
           <label>
             <span>Farm location</span>
@@ -132,8 +132,8 @@
 
         <section class="panel">
           <div class="panel-title">
-            <h2>Advisory</h2>
-            <p>Choose the level of intervention, then update the plan.</p>
+            <h2>Fire Simulation</h2>
+            <p>Run the visual preview first. Full ELMFIRE is in Advanced.</p>
           </div>
           <label>
             <span>Preparedness mode</span>
@@ -143,7 +143,7 @@
               <option value="maximum">Maximum Protection</option>
             </select>
           </label>
-          <button class="primary wide" id="runSimulation">Update Farm Advisory</button>
+          <button class="primary wide" id="runSimulation">Simulate fire</button>
           <details class="quiet-details">
             <summary>Compare spread</summary>
             <div class="mode-switch" aria-label="Simulation display mode">
@@ -171,6 +171,7 @@
           <details>
             <summary>Backend handoff</summary>
             <div class="action-grid compact-actions">
+              <button id="runElmfire">Run full ELMFIRE</button>
               <button id="loadResults">Import results</button>
               <input id="resultsFile" type="file" accept=".json,application/json" hidden />
               <button id="saveBackendJob">Save job</button>
@@ -327,9 +328,9 @@
     <div class="mobile-action-bar" aria-label="Mobile actions">
       <button id="mobileSample">Sample</button>
       <button id="mobileUndo">Undo</button>
-      <button class="primary" id="mobileRun">Update</button>
+      <button class="primary" id="mobileRun">Simulate</button>
     </div>
 
-    <script src="./app.js"></script>
+    <script src="./app.js?v=demo-2"></script>
   </body>
 </html>
