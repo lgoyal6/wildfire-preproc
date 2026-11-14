@@ -1,0 +1,35 @@
+1
+00:00:00,000 --> 00:00:05,200
+Start by selecting the farm location and tracing the parcel boundary.
+
+2
+00:00:05,200 --> 00:00:08,200
+Farm attributes update the advisory: crop, harvest window, livestock, irrigation, and crew.
+
+3
+00:00:08,200 --> 00:00:13,400
+Key assets are added inside the parcel so the plan protects what matters most.
+
+4
+00:00:13,400 --> 00:00:22,500
+The risk simulation ranks incoming fire paths by wind, fuels, weather, and asset exposure.
+
+5
+00:00:22,500 --> 00:00:33,500
+Protected mode shows how action lines slow the highest-risk corridors before they hit the parcel.
+
+6
+00:00:33,500 --> 00:00:44,500
+The report turns the simulation into a plain-English field plan for a manager or crew.
+
+7
+00:00:44,500 --> 00:00:53,500
+Technical details keep the backend-ready payload and ranked alternatives available for review.
+
+8
+00:00:53,500 --> 00:01:01,500
+Alerts convert the same farm data into practical timing for crews, livestock, and irrigation.
+
+9
+00:01:01,500 --> 00:01:06,000
+AgriShield connects parcel selection, farm attributes, simulation, action planning, and reporting.

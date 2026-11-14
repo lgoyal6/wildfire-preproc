@@ -1,0 +1,35 @@
+1
+00:00:04,500 --> 00:00:10,200
+Trace the parcel boundary on satellite imagery.
+
+2
+00:00:11,300 --> 00:00:16,000
+Choose crop, harvest window, livestock, irrigation, and crew size.
+
+3
+00:00:17,100 --> 00:00:24,000
+Mark barns, high-value crops, livestock, access roads, and water.
+
+4
+00:00:25,100 --> 00:00:36,000
+Risk corridors are ranked by wind, fuels, weather, and asset exposure.
+
+5
+00:00:37,100 --> 00:00:49,000
+Protected mode shows how firebreaks slow the highest-risk corridors.
+
+6
+00:00:50,100 --> 00:01:00,500
+Share the field plan with a farm manager, advisor, or crew.
+
+7
+00:01:01,600 --> 00:01:10,600
+Review ranked layouts and backend-ready payload data.
+
+8
+00:01:11,700 --> 00:01:20,000
+Summarize smoke, livestock, irrigation, and outdoor labor guidance.
+
+9
+00:01:20,000 --> 00:01:24,000
+Parcel selection, attributes, simulation, action planning, reports, and alerts in one farm workflow.
